@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use std::env;
+use std::{env, fs, process::Command};
 
 fn required(key: &str) -> Result<String> {
     env::var(key).with_context(|| format!("Required variable not set: {}", key))
@@ -28,6 +28,9 @@ fn main() -> Result<()> {
     let endpoint_ip   = required("EXIT_ENDPOINT_IP")?;
     let endpoint_port = required("EXIT_ENDPOINT_PORT")?;
     let keepalive     = optional("EXIT_KEEPALIVE", "15");
+
+    let ssh_key_file = env::var("ROOT_SSH_PUBLIC_KEY_FILE").ok().filter(|s| !s.is_empty());
+    let router_ip    = optional("ROUTER_IP", "192.168.88.1");
 
     let exit_ipv4 = optional("EXIT_IPV4", "yes") == "yes";
     let exit_ipv6 = optional("EXIT_IPV6", "yes") == "yes";
@@ -67,9 +70,6 @@ fn main() -> Result<()> {
     println!();
     println!("# --- Users ---");
     println!("/user add name=root group=full");
-    println!("# From your local machine, push your SSH public key:");
-    println!("# ssh -4 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@192.168.88.1 \\");
-    println!("#   \"/file print file=mykey.txt; file set mykey.txt contents=\\\"$(cat ~/.ssh/id_ed25519.pub)\\\"; /user ssh-keys import public-key-file=mykey.txt\"");
     println!();
     println!("# --- Bridge ---");
     println!("/interface bridge add name=bridge comment=defconf");
@@ -147,6 +147,30 @@ fn main() -> Result<()> {
     println!();
     println!("# --- Allow WireGuard UDP through IPv4 input firewall ---");
     println!("/ip firewall filter add action=accept chain=input comment=\"allow WireGuard exit UDP\" protocol=udp dst-port={wg_port} in-interface-list=WAN place-before=[find comment=\"defconf: drop all not coming from LAN\"]");
+
+    if let Some(ref key_path) = ssh_key_file {
+        let key = fs::read_to_string(key_path)
+            .with_context(|| format!("Failed to read ROOT_SSH_PUBLIC_KEY_FILE: {}", key_path))?;
+        let key = key.trim();
+        let remote_cmd = format!(
+            "/file print file=mykey.txt; file set mykey.txt contents=\"{key}\"; /user ssh-keys import public-key-file=mykey.txt"
+        );
+        eprintln!("Installing SSH public key on root@{router_ip}...");
+        let status = Command::new("ssh")
+            .args([
+                "-4",
+                "-o", "UserKnownHostsFile=/dev/null",
+                "-o", "StrictHostKeyChecking=no",
+                &format!("root@{router_ip}"),
+                &remote_cmd,
+            ])
+            .status()
+            .context("Failed to run ssh")?;
+        if !status.success() {
+            anyhow::bail!("SSH key installation failed — is the RSC applied and root user created?");
+        }
+        eprintln!("SSH key installed.");
+    }
 
     Ok(())
 }
