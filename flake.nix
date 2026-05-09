@@ -9,7 +9,7 @@
   in {
     devShells = forAllSystems (pkgs: {
       default = pkgs.mkShell {
-        packages = [ pkgs.bash pkgs.shellcheck ];
+        packages = [ pkgs.bash pkgs.shellcheck pkgs.dotenv-cli ];
       };
     });
   };
