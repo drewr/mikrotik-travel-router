@@ -1,237 +1,66 @@
-# MikroTik hAP ax² Travel Router: Complete Setup Guide
+# MikroTik hAP ax² Travel Router
 
-## What This Builds
-
-A travel router based on the MikroTik hAP ax² (C52iG-5HaxD2HaxD) that:
-
-- Connects to an upstream WiFi network (hotel, office, etc.) using the 5 GHz radio as WAN
-- Provides a private LAN via the 2.4 GHz radio, wired Ethernet ports (2–5), and an optional
-  secondary "travel" SSID on the 5 GHz radio
-- NATs LAN clients behind its upstream IP (IPv4)
-- Tunnels IPv6 through a WireGuard exit node so LAN clients get IPv6 connectivity without
-  any per-device configuration
-- Filters DNS through NextDNS over DoH
+A MikroTik hAP ax² (C52iG-5HaxD2HaxD) configured as a travel router with a
+WireGuard exit node for IPv4 and IPv6. A Rust tool generates the RouterOS setup
+script from a `.env` file so secrets never live in this repo.
 
 ```
   [Upstream WiFi AP]
          |
-    (wifi1, 5GHz)                  ← station-bridge to upstream, WAN interface
+    (wifi1, 5GHz)                  ← station-bridge to upstream, WAN
          |
    [ MikroTik bridge ]
     /    |    \
-  eth2  eth3  wifiTravel(5GHz vAP) ← LAN clients (wired + wireless)
+  eth2  eth3  wifiTravel(5GHz vAP) ← LAN clients
   eth4  eth5
-              wifi2(2.4GHz)        ← disabled, not used
+              wifi2(2.4GHz)        ← disabled (see issue #1 for fallback plan)
 
-  IPv6: all LAN traffic tunnelled through WireGuard exit node (wg exit)
+  IPv4 + IPv6 → WireGuard exit node (interface: exit)
 ```
 
 ---
 
 ## Prerequisites
 
-- MikroTik hAP ax² (C52iG-5HaxD2HaxD), factory fresh or reset
-- Credentials for the upstream WiFi network you want to connect to
-- An IPv6-capable WireGuard exit node (AirVPN or your favorite WireGuard VPN provider) —
-  download a WireGuard config for your preferred server
-- Winbox (Windows/Mac app) or SSH to reach the router at `192.168.88.1`
+- MikroTik hAP ax² factory fresh or reset to defaults
+- Upstream WiFi credentials (hotel, office, home, etc.)
+- WireGuard config downloaded from an IPv6-capable exit node provider
+  (AirVPN or your favourite WireGuard VPN)
+- Nix, or Rust toolchain (`cargo build --release`)
 - (Optional) NextDNS account and profile ID
 
 ---
 
-## 1. Initial Access
+## Quickstart
 
-A factory-fresh device has no WiFi password. Connect to the `MikroTik-XXXXXX` SSID
-or plug into any Ethernet port (2–5). Browse to `http://192.168.88.1` or use Winbox
-and connect to `192.168.88.1` with username `admin`, no password.
-
-Open a terminal: **Winbox → New Terminal**, or `ssh admin@192.168.88.1`.
-
-Set an admin password before doing anything else:
-
-```
-/user set [find name=admin] password="YOUR_ADMIN_PASSWORD"
-```
-
-### Create a root user and install your SSH public key
-
-The default `admin` account is fine for initial setup, but a named `root` account
-with full privileges and key-based SSH access is easier to use from scripts and
-avoids typing a password every time.
-
-On the MikroTik terminal:
-
-```
-/user add name=root group=full
-```
-
-Then, from your local machine, push your SSH public key in one command. This works
-by writing the key to a temporary file on the router and importing it — no password
-prompt after the initial connection:
+### 1. Prepare the env file
 
 ```sh
-ssh -4 \
-    -o UserKnownHostsFile=/dev/null \
-    -o StrictHostKeyChecking=no \
-    root@192.168.88.1 \
-    "/file print file=mykey.txt; \
-     file set mykey.txt contents=\"$(cat ~/.ssh/id_ed25519.pub)\"; \
-     /user ssh-keys import public-key-file=mykey.txt"
+cp .env.example .env
+$EDITOR .env          # fill in the network values
 ```
 
-- `-4` forces IPv4 (avoids ambiguity before IPv6 is configured)
-- `UserKnownHostsFile=/dev/null` and `StrictHostKeyChecking=no` skip host key
-  verification, which is appropriate here since you are on the LAN talking to a
-  freshly reset device
-- Adjust `id_ed25519.pub` to match your key file if you use a different key type
-
-After this you can SSH in without a password:
+Populate the `EXIT_*` values from your downloaded WireGuard config:
 
 ```sh
-ssh -4 root@192.168.88.1
+nix run .#import-wireguard < wireguard.conf
 ```
 
----
+### 2. Generate and apply the RouterOS script
 
-## 2. Create the Bridge Interface
-
-The bridge ties together all LAN-facing interfaces (wired ports + 2.4 GHz AP + travel
-vAP) into a single Layer 2 segment.
-
-```
-/interface bridge
-add name=bridge comment=defconf
+```sh
+nix run .#generate > setup.rsc
+scp setup.rsc root@192.168.88.1:/
+ssh root@192.168.88.1 "/import file-name=setup.rsc"
 ```
 
----
+If `ROOT_SSH_PUBLIC_KEY_FILE` is set, `generate` also SSHes into the router
+to install the key after writing the RSC.
 
-## 3. Configure WiFi Security Profiles
+### 3. Install CA certificates
 
-RouterOS 7 uses named security profiles that can be shared across interfaces.
-
-```
-/interface wifi security
-
-# Profile for authenticating TO the upstream network (WAN)
-add name=Upstream \
-    passphrase="YOUR_UPSTREAM_WIFI_PASSWORD" \
-    ft=no
-
-# Profile for your local travel AP (LAN)
-add name=Travel \
-    passphrase="YOUR_TRAVEL_AP_PASSWORD"
-```
-
----
-
-## 4. Configure WiFi Interfaces
-
-### 5 GHz radio — WAN (station-bridge to upstream)
-
-```
-/interface wifi
-set [find default-name=wifi1] \
-    channel.band=5ghz-ax \
-    channel.skip-dfs-channels=all \
-    configuration.mode=station-bridge \
-    configuration.ssid="YOUR_UPSTREAM_SSID" \   ← SSID of the hotel/office/home AP
-    security=Upstream \
-    security.ft=no \
-    security.ft-over-ds=no \
-    disabled=no
-```
-
-`station-bridge` mode connects the 5 GHz radio as a WiFi client of the upstream AP.
-The MikroTik obtains its own IP from the upstream DHCP server (see step 8) and
-NATs LAN clients behind it.
-
-### 2.4 GHz radio — disabled
-
-```
-/interface wifi
-set [find default-name=wifi2] disabled=yes
-```
-
-### Secondary travel AP (virtual interface on 5 GHz)
-
-This creates a second SSID on the 5 GHz radio. Useful if you want a separate network
-for guests, or a consistently-named SSID you connect your devices to regardless of
-what the upstream network is called.
-
-```
-/interface wifi
-add name=wifiTravel \
-    master-interface=wifi1 \
-    configuration.mode=ap \
-    configuration.ssid="YOUR_TRAVEL_SSID" \     ← e.g. "Amsterdam"
-    security=Travel \
-    disabled=no
-```
-
----
-
-## 5. Add Ports to the Bridge
-
-The default config puts wifi1 in the bridge; remove it so it stays a standalone WAN
-interface. Then add the travel vAP as a LAN member.
-
-```
-/interface bridge port
-remove [find interface=wifi1]
-add bridge=bridge interface=wifiTravel
-```
-
----
-
-## 6. Interface Lists
-
-```
-/interface list member
-add interface=wifi1  list=WAN
-add interface=exit list=WAN
-```
-
----
-
-## 7. LAN IP Address
-
-The default configuration uses `192.168.88.0/24`. If you want a different subnet,
-change it here before continuing:
-
-```
-/ip address
-set [find interface=bridge] address=192.168.X.1/24
-```
-
----
-
-## 8. WAN: DHCP Client
-
-The router obtains its IPv4 address from the upstream WiFi AP.
-
-```
-/ip dhcp-client
-add interface=wifi1 \
-    default-route-tables=main \
-    name=wan-dhcp \
-    comment=defconf
-```
-
----
-
-## 9. DHCP Server for LAN Clients
-
-The default configuration serves `192.168.88.10–192.168.88.254` on the bridge
-interface. If you changed the LAN subnet in step 7, update the pool and network
-here to match.
-
----
-
-## 10. Install CA Certificates
-
-DoH requires the router to verify the TLS certificate of the DNS server. RouterOS
-ships without a CA bundle, so fetch and import one before configuring DNS. This
-requires basic IPv4 connectivity to already be working (steps 7–9).
+This must be done manually once, after wifi1 has an upstream connection, before
+DoH verification will work:
 
 ```
 /tool fetch url=https://curl.se/ca/cacert.pem
@@ -240,111 +69,102 @@ requires basic IPv4 connectivity to already be working (steps 7–9).
 
 ---
 
-## 11. DNS
+## Configuration reference
 
-The router acts as a DNS proxy for LAN clients. Here it is configured to use
-NextDNS over DoH for privacy and filtering. Replace `YOUR_NEXTDNS_PROFILE_ID` with
-your profile ID from nextdns.io, and adjust the upstream resolvers to taste.
+All variables are read from the environment. Copy `.env.example` to `.env` and
+fill in values; `import-wireguard` populates the `EXIT_*` block automatically.
+
+### EXIT_* — populated by `import-wireguard`
+
+| Variable | Description |
+|---|---|
+| `EXIT_PRIVATE_KEY` | WireGuard private key |
+| `EXIT_TUNNEL_IPV4` | Tunnel IPv4 address (CIDR) |
+| `EXIT_TUNNEL_IPV6` | Tunnel IPv6 address (CIDR) |
+| `EXIT_MTU` | Interface MTU (typically 1320) |
+| `EXIT_SERVER_PUBKEY` | Exit node public key |
+| `EXIT_PRESHARED_KEY` | WireGuard preshared key |
+| `EXIT_ENDPOINT_IP` | Exit node IP address |
+| `EXIT_ENDPOINT_PORT` | Exit node UDP port |
+| `EXIT_KEEPALIVE` | Persistent keepalive in seconds |
+
+### Network — fill in manually
+
+| Variable | Default | Description |
+|---|---|---|
+| `UPSTREAM_SSID` | *(required)* | SSID of the upstream WiFi network |
+| `UPSTREAM_WIFI_PASSWORD` | *(required)* | Upstream WiFi passphrase |
+| `TRAVEL_SSID` | *(required)* | SSID of the local travel AP |
+| `TRAVEL_WIFI_PASSWORD` | *(required)* | Travel AP passphrase |
+| `NEXTDNS_PROFILE_ID` | *(required)* | NextDNS profile ID |
+| `NEXTDNS_DEVICE_NAME` | value of `DEVICE_NAME` | Device name shown in NextDNS |
+| `DEVICE_NAME` | *(required)* | RouterOS identity and hostname |
+| `ROUTER_IP` | `192.168.88.1` | Router LAN IP (used for SSH key install) |
+| `ROOT_SSH_PUBLIC_KEY_FILE` | *(unset)* | Path to public key to install on root |
+| `LAN_SUBNET` | `192.168.88.0/24` | LAN subnet — change if upstream uses the same range |
+| `LAN_ULA_PREFIX` | `fd88:1::1/64` | IPv6 ULA prefix for LAN |
+| `WG_LISTEN_PORT` | `13231` | Local WireGuard UDP listen port |
+| `EXIT_IPV4` | `yes` | Route IPv4 through the exit node |
+| `EXIT_IPV6` | `yes` | Route IPv6 through the exit node |
+
+#### EXIT_IPV4 and EXIT_IPV6
+
+Setting either to `no` leaves that protocol routing directly through the upstream
+ISP. At least one must be `yes`.
+
+| EXIT_IPV4 | EXIT_IPV6 | WireGuard allowed-address |
+|---|---|---|
+| yes | yes | `0.0.0.0/0,::/0` |
+| no | yes | `::/0` |
+| yes | no | `0.0.0.0/0` |
+
+When `EXIT_IPV4=yes` the generated RSC also installs a named RouterOS script
+(`exit-endpoint-update`) on the DHCP client. It fires on every lease renewal and
+updates the endpoint host route to use the current upstream gateway — so the tunnel
+survives moving between networks.
+
+#### LAN_SUBNET
+
+If the upstream network uses the same subnet as the router's LAN (common with
+`192.168.88.x`), clients will lose connectivity. Set `LAN_SUBNET` to a different
+/24 to avoid the conflict:
 
 ```
-/ip dns
-set allow-remote-requests=yes \
-    servers=1.1.1.3,1.0.0.3 \
-    use-doh-server="https://dns.nextdns.io/YOUR_NEXTDNS_PROFILE_ID/YOUR_DEVICE_NAME" \
-    verify-doh-cert=yes
+LAN_SUBNET=192.168.200.0/24
 ```
 
-NextDNS resolves via IPv6 as well; pre-seed its addresses as static DNS entries so the
-router can reach the DoH server before it has DNS itself:
-
-```
-/ip dns static
-add name=router.lan address=192.168.88.1 type=A comment=defconf
-add name=dns.nextdns.io address=45.90.28.0  type=A
-add name=dns.nextdns.io address=45.90.30.0  type=A
-add name=dns.nextdns.io address=2a07:a8c0:: type=AAAA
-add name=dns.nextdns.io address=2a07:a8c1:: type=AAAA
-```
+The subnet change commands are emitted **last** in the RSC. If importing via SSH
+the connection will drop when the bridge IP changes, but `/import` continues
+running on the router. Reconnect at the new gateway IP when done.
 
 ---
 
-## 12. NAT (IPv4)
+## First-time device setup
 
-Masquerade all LAN traffic behind the router's upstream IP.
+On a factory-fresh device, connect to the `MikroTik-XXXXXX` SSID or plug into any
+Ethernet port (2–5) and SSH or Winbox to `192.168.88.1` (user `admin`, no password).
+
+Set an admin password immediately:
 
 ```
-/ip firewall nat
-add action=masquerade chain=srcnat \
-    ipsec-policy=out,none \
-    out-interface-list=WAN \
-    comment="defconf: masquerade"
+/user set [find name=admin] password="YOUR_ADMIN_PASSWORD"
 ```
 
----
+Create the root user the RSC expects:
 
-## 13. Firewall (IPv4)
+```
+/user add name=root group=full
+```
 
-The factory default rules are sufficient. They provide stateful filtering on both
-the input and forward chains, accepting established/related traffic and dropping
-anything arriving from WAN that wasn't initiated from the LAN side. Adjust if you
-need to expose services or tighten restrictions beyond the defaults.
-
----
-
-## 14. Firewall (IPv6)
-
-Same as IPv4 — the factory defaults are sufficient. They block known-bad address
-ranges, accept ICMPv6 and established/related traffic, and drop unsolicited inbound
-connections from the WAN side. Adjust as needed.
-
----
-
-## 15. IPv6 via WireGuard Exit Node
-
-The upstream WiFi network provides IPv4 only. We tunnel IPv6 through a WireGuard exit
-node (AirVPN or your favorite WireGuard VPN provider). Because the exit node assigns a
-single /128 (not a prefix), LAN clients get ULA addresses from a locally assigned /64,
-masqueraded behind the tunnel address via NAT66 — the IPv6 equivalent of the IPv4
-masquerade already in place.
-
-Rather than embedding secrets in these instructions, a pair of bash scripts in this
-repo build the RouterOS setup script from a `.env` file.
-
-### Setup
-
-Copy the env template and fill in the network values:
+If `ROOT_SSH_PUBLIC_KEY_FILE` is not set in your `.env`, install your SSH key
+manually:
 
 ```sh
-cp .env.example .env
-$EDITOR .env
+ssh -4 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@192.168.88.1 \
+  "/file print file=mykey.txt; \
+   file set mykey.txt contents=\"$(cat ~/.ssh/id_ed25519.pub)\"; \
+   /user ssh-keys import public-key-file=mykey.txt"
 ```
-
-Populate the `EXIT_*` values by piping your downloaded WireGuard config through the
-parser. This overwrites only the `EXIT_*` keys, leaving everything else intact:
-
-```sh
-nix run .#import-wireguard < wireguard.conf
-```
-
-Generate the RouterOS script:
-
-```sh
-nix run .#generate > setup.rsc
-```
-
-Apply it on the router:
-
-```sh
-ssh root@192.168.88.1 "/import file-name=setup.rsc"
-```
-
-### What LAN clients see
-
-- Each device auto-configures a ULA IPv6 address via SLAAC (no manual setup)
-- IPv6 default gateway is the router
-- DNS is served by the MikroTik (NextDNS DoH handles resolution)
-- Outbound IPv6 is masqueraded behind the exit node's tunnel address
-- IPv4 is unaffected — still routes directly through wifi1
 
 ---
 
@@ -356,39 +176,50 @@ ssh root@192.168.88.1 "/import file-name=setup.rsc"
 /interface wifi print
 ```
 
-`wifi1` should show `R` (running) in the flags column once it associates with the
-upstream AP.
+`wifi1` shows `R` (running) once associated with the upstream AP.
 
-### IPv4 connectivity
+### DHCP lease
 
 ```
 /ip dhcp-client print
 ```
 
-`wan-dhcp` should show `bound` with an address from the upstream network.
+`wan-dhcp` shows `bound` with an address from the upstream network.
 
-```
-/ping 1.1.1.1
-```
-
-### WireGuard exit tunnel
+### WireGuard tunnel
 
 ```
 /interface wireguard peers print
 ```
 
-The `last-handshake` field should be non-zero and recent (within 30 s given
-`persistent-keepalive=15s`).
+`last-handshake` should be recent (within 30 s given the default keepalive).
+
+### Routing
 
 ```
-/ipv6 route print
+/ip route print where comment=exit-endpoint
+/ipv6 route print where dst-address=::/0
 ```
 
-The `::/0` route should show `reachable` via `exit`.
+The endpoint host route and IPv6 default route should both be present and active.
 
-### IPv6 from a LAN client
+### End-to-end
 
-```
+From a LAN client:
+
+```sh
+ping 1.1.1.1
 ping6 ipv6.google.com
 ```
 
+---
+
+## Development
+
+```sh
+make build   # cargo build --release
+make check   # cargo clippy
+make test    # cargo test
+```
+
+Requires Nix or a local Rust toolchain. `nix develop` provides cargo and rustc.
