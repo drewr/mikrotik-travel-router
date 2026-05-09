@@ -338,13 +338,13 @@ Populate the AirVPN values by piping your downloaded WireGuard config through th
 parser. This overwrites only the `AIRVPN_*` keys, leaving everything else intact:
 
 ```sh
-cat AirVPN_*.conf | guile wg-to-env.scm
+cat AirVPN_*.conf | guile wg-to-env.scm .env
 ```
 
 Generate the RouterOS script:
 
 ```sh
-guile generate-rsc.scm > setup.rsc
+guile generate-rsc.scm .env > setup.rsc
 ```
 
 Apply it on the router:

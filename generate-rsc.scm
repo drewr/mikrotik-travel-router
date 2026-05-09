@@ -3,7 +3,7 @@
 
 ;;; generate-rsc.scm — Read .env and emit a RouterOS setup script to stdout.
 ;;;
-;;; Usage: guile generate-rsc.scm > setup.rsc
+;;; Usage: guile generate-rsc.scm <env-file> > setup.rsc
 
 (use-modules (ice-9 rdelim)
              (ice-9 regex)
@@ -186,6 +186,9 @@
          "place-before=[find comment=\"defconf: drop all not coming from LAN\"]")))
 
 (define (main)
-  (generate (read-env ".env")))
+  (let ((args (cdr (command-line))))
+    (when (null? args)
+      (die "Usage: guile generate-rsc.scm <env-file>"))
+    (generate (read-env (car args)))))
 
 (main)
