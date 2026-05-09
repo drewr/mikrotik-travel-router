@@ -1,0 +1,16 @@
+[package]
+name = "mikrotik-travel-router"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "import-wireguard"
+path = "src/bin/import_wireguard.rs"
+
+[[bin]]
+name = "generate"
+path = "src/bin/generate.rs"
+
+[dependencies]
+anyhow = "1"
+dotenvy = "0.15"

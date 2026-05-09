@@ -9,33 +9,20 @@
   in {
     devShells = forAllSystems (pkgs: {
       default = pkgs.mkShell {
-        packages = [ pkgs.bash pkgs.shellcheck pkgs.dotenv-cli ];
+        packages = [ pkgs.cargo pkgs.rustc ];
       };
     });
 
     apps = forAllSystems (pkgs: let
-      importWireguard = pkgs.writeShellApplication {
-        name = "import-wireguard";
-        runtimeInputs = [ pkgs.coreutils pkgs.gnugrep pkgs.gnused ];
-        text = builtins.readFile ./wg-to-env.sh;
-      };
-
-      generateRsc = pkgs.writeShellApplication {
-        name = "generate-rsc";
-        runtimeInputs = [ ];
-        text = builtins.readFile ./generate-rsc.sh;
-      };
-
-      generate = pkgs.writeShellApplication {
-        name = "generate";
-        runtimeInputs = [ pkgs.dotenv-cli generateRsc ];
-        text = ''
-          dotenv -- generate-rsc "$@"
-        '';
+      package = pkgs.rustPlatform.buildRustPackage {
+        pname = "mikrotik-travel-router";
+        version = "0.1.0";
+        src = self;
+        cargoLock.lockFile = ./Cargo.lock;
       };
     in {
-      import-wireguard = { type = "app"; program = "${importWireguard}/bin/import-wireguard"; };
-      generate         = { type = "app"; program = "${generate}/bin/generate"; };
+      import-wireguard = { type = "app"; program = "${package}/bin/import-wireguard"; };
+      generate         = { type = "app"; program = "${package}/bin/generate"; };
     });
   };
 }

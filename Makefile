@@ -1,2 +1,7 @@
+build:
+	cargo build --release
+
 check:
-	nix run nixpkgs#shellcheck -- wg-to-env.sh generate-rsc.sh
+	cargo clippy -- -D warnings
+
+.PHONY: build check
