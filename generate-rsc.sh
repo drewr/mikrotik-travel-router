@@ -1,37 +1,23 @@
 #!/usr/bin/env bash
-# generate-rsc.sh — Read an env file and emit a RouterOS setup script to stdout.
+# generate-rsc.sh — Emit a RouterOS setup script to stdout.
+# All configuration is read from environment variables.
 #
-# Usage: bash generate-rsc.sh <env-file> > setup.rsc
+# Usage: source .env && ./generate-rsc.sh > setup.rsc
 set -euo pipefail
 
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
-[[ $# -eq 1 ]] || die "Usage: $0 <env-file>"
-env_file="$1"
-
-[[ -f "$env_file" ]] || die "Missing $env_file — copy .env.example and fill in values"
-
-env_get() {
-    local key="$1"
-    local val
-    val=$(grep -m1 "^${key}=" "$env_file" | cut -d= -f2-) || true
-    printf '%s' "$val"
-}
-
 required() {
     local key="$1"
-    local val
-    val=$(env_get "$key")
-    [[ -n "$val" ]] || die "Required variable not set in $env_file: $key"
+    local val="${!key}"
+    [[ -n "$val" ]] || die "Required variable not set: $key"
     printf '%s' "$val"
 }
 
 optional() {
     local key="$1"
     local default="$2"
-    local val
-    val=$(env_get "$key")
-    printf '%s' "${val:-$default}"
+    printf '%s' "${!key:-$default}"
 }
 
 upstream_ssid=$(required UPSTREAM_SSID)

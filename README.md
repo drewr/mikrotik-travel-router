@@ -334,10 +334,11 @@ parser. This overwrites only the `EXIT_*` keys, leaving everything else intact:
 cat wireguard.conf | bash wg-to-env.sh .env
 ```
 
-Generate the RouterOS script:
+Generate the RouterOS script. `generate-rsc.sh` reads from environment variables,
+so source the env file first:
 
 ```sh
-bash generate-rsc.sh .env > setup.rsc
+source .env && ./generate-rsc.sh > setup.rsc
 ```
 
 Apply it on the router:
