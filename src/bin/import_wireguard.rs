@@ -4,6 +4,21 @@ use std::collections::HashMap;
 use std::io::{self, BufRead, Write};
 use std::{env, fs};
 
+// Keys written by this tool — stripped and replaced on every run.
+// EXIT_IPV4 and EXIT_IPV6 are NOT in this list: they are user choices
+// and must survive a re-run of import-wireguard.
+const WG_KEYS: &[&str] = &[
+    "EXIT_PRIVATE_KEY=",
+    "EXIT_TUNNEL_IPV4=",
+    "EXIT_TUNNEL_IPV6=",
+    "EXIT_MTU=",
+    "EXIT_SERVER_PUBKEY=",
+    "EXIT_PRESHARED_KEY=",
+    "EXIT_ENDPOINT_IP=",
+    "EXIT_ENDPOINT_PORT=",
+    "EXIT_KEEPALIVE=",
+];
+
 const TEMPLATE: &str = "\n\
 # Network — fill in manually\n\
 UPSTREAM_SSID=\n\
@@ -14,7 +29,9 @@ NEXTDNS_PROFILE_ID=\n\
 NEXTDNS_DEVICE_NAME=\n\
 DEVICE_NAME=\n\
 WG_LISTEN_PORT=13231\n\
-LAN_ULA_PREFIX=fd88:1::1/64\n";
+LAN_ULA_PREFIX=fd88:1::1/64\n\
+EXIT_IPV4=yes\n\
+EXIT_IPV6=yes\n";
 
 fn parse_addresses(addr: &str) -> Result<(String, String)> {
     let mut ipv4 = String::new();
@@ -84,7 +101,10 @@ fn main() -> Result<()> {
         eprintln!("backed up to {}", backup_path);
         fs::read_to_string(&backup_path)?
             .lines()
-            .filter(|l| !l.starts_with("EXIT_") && !l.starts_with("# EXIT_"))
+            .filter(|l| {
+                !l.starts_with("# EXIT_* values") &&
+                !WG_KEYS.iter().any(|k| l.starts_with(k))
+            })
             .map(|l| format!("{}\n", l))
             .collect()
     } else {

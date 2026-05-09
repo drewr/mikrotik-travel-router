@@ -64,6 +64,29 @@ fn fresh_env_includes_template_placeholders() {
     assert!(content.contains("UPSTREAM_SSID="));
     assert!(content.contains("DEVICE_NAME="));
     assert!(content.contains("NEXTDNS_PROFILE_ID="));
+    assert!(content.contains("EXIT_IPV4=yes"));
+    assert!(content.contains("EXIT_IPV6=yes"));
+}
+
+#[test]
+fn exit_ipv4_and_ipv6_survive_rerun() {
+    let dir = TempDir::new().unwrap();
+    // First run seeds the template
+    run(VALID_CONFIG, &env_path(&dir));
+
+    // User sets their flags
+    let content = std::fs::read_to_string(env_path(&dir)).unwrap();
+    let modified = content
+        .replace("EXIT_IPV4=yes", "EXIT_IPV4=no")
+        .replace("EXIT_IPV6=yes", "EXIT_IPV6=no");
+    std::fs::write(env_path(&dir), &modified).unwrap();
+
+    // Second run with a new WireGuard config
+    run(VALID_CONFIG, &env_path(&dir));
+
+    let after = std::fs::read_to_string(env_path(&dir)).unwrap();
+    assert!(after.contains("EXIT_IPV4=no"), "EXIT_IPV4 was overwritten");
+    assert!(after.contains("EXIT_IPV6=no"), "EXIT_IPV6 was overwritten");
 }
 
 #[test]
