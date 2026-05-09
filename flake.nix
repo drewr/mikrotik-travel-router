@@ -9,7 +9,7 @@
   in {
     devShells = forAllSystems (pkgs: {
       default = pkgs.mkShell {
-        packages = [ pkgs.guile ];
+        packages = [ pkgs.bash pkgs.shellcheck ];
       };
     });
   };

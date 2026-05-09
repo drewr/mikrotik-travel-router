@@ -306,26 +306,18 @@ WireGuard. Because AirVPN assigns a single /128 (not a prefix), LAN clients get 
 addresses from a locally assigned /64, masqueraded behind the tunnel address via
 NAT66 — the IPv6 equivalent of the IPv4 masquerade already in place.
 
-Rather than embedding secrets in these instructions, a pair of Guile Scheme scripts
-in this repo build the RouterOS setup script from a `.env` file.
+Rather than embedding secrets in these instructions, a pair of bash scripts in this
+repo build the RouterOS setup script from a `.env` file.
 
 ### Setup
 
-Install Guile if needed. The repo includes a `flake.nix`, so if you have Nix:
+The repo includes a `flake.nix` with `bash` and `shellcheck`. If you have Nix:
 
 ```sh
 nix develop
 ```
 
-Otherwise install directly:
-
-```sh
-# macOS
-brew install guile
-
-# Debian/Ubuntu
-apt install guile-3.0
-```
+Otherwise bash is already present on macOS and Linux.
 
 Copy the env template and fill in the network values:
 
@@ -338,13 +330,13 @@ Populate the AirVPN values by piping your downloaded WireGuard config through th
 parser. This overwrites only the `AIRVPN_*` keys, leaving everything else intact:
 
 ```sh
-cat AirVPN_*.conf | guile wg-to-env.scm .env
+cat AirVPN_*.conf | bash wg-to-env.sh .env
 ```
 
 Generate the RouterOS script:
 
 ```sh
-guile generate-rsc.scm .env > setup.rsc
+bash generate-rsc.sh .env > setup.rsc
 ```
 
 Apply it on the router:
