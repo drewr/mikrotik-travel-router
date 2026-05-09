@@ -159,7 +159,14 @@ fn main() -> Result<()> {
         println!("/ip address add address={ipv4} interface=exit");
         println!("/ip route add dst-address=0.0.0.0/0 gateway=exit");
         println!("# Endpoint host route — reinstalled dynamically on each DHCP lease");
-        println!("/ip dhcp-client set [find name=wan-dhcp] script={{/ip route remove [find comment=exit-endpoint]; /ip route add dst-address={endpoint_ip}/32 gateway=[/ip dhcp-client get [find name=wan-dhcp] gateway] comment=exit-endpoint}}");
+        println!("/system script add name=exit-endpoint-update source={{");
+        println!("    :local gw [/ip dhcp-client get [find name=wan-dhcp] gateway]");
+        println!("    :if ($gw != \"\") do={{");
+        println!("        :do {{ /ip route remove [find comment=exit-endpoint] }} on-error={{}}");
+        println!("        /ip route add dst-address={endpoint_ip}/32 gateway=$gw comment=exit-endpoint");
+        println!("    }}");
+        println!("}}");
+        println!("/ip dhcp-client set [find name=wan-dhcp] script=exit-endpoint-update");
     }
 
     if exit_ipv6 {
