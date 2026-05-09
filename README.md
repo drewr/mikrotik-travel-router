@@ -50,12 +50,26 @@ nix run .#import-wireguard < wireguard.conf
 
 ```sh
 nix run .#generate > setup.rsc
-scp setup.rsc root@192.168.88.1:/
-ssh root@192.168.88.1 "/import file-name=setup.rsc"
+scp -o StrictHostKeyChecking=no setup.rsc admin@192.168.88.1:/
+ssh -o StrictHostKeyChecking=no admin@192.168.88.1 "/import file-name=setup.rsc"
 ```
 
-If `ROOT_SSH_PUBLIC_KEY_FILE` is set, `generate` also SSHes into the router
-to install the key after writing the RSC.
+Use `admin` (not `root`) — root doesn't exist until the RSC creates it. After
+the import completes, install your SSH key for root:
+
+```sh
+nix run .#generate > /dev/null   # ROOT_SSH_PUBLIC_KEY_FILE must be set
+```
+
+Or manually:
+
+```sh
+ssh -4 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  root@192.168.88.1 \
+  "/file print file=mykey.txt; \
+   file set mykey.txt contents=\"$(cat ~/.ssh/id_ed25519.pub)\"; \
+   /user ssh-keys import public-key-file=mykey.txt"
+```
 
 ### 3. Install CA certificates
 
@@ -154,15 +168,8 @@ Set an admin password immediately:
 /user set [find name=admin] password="YOUR_ADMIN_PASSWORD"
 ```
 
-The RSC creates the `root` user automatically. If `ROOT_SSH_PUBLIC_KEY_FILE` is
-not set in your `.env`, install your SSH key manually after applying the RSC:
-
-```sh
-ssh -4 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@192.168.88.1 \
-  "/file print file=mykey.txt; \
-   file set mykey.txt contents=\"$(cat ~/.ssh/id_ed25519.pub)\"; \
-   /user ssh-keys import public-key-file=mykey.txt"
-```
+The RSC creates the `root` user automatically. See step 2 of the quickstart
+for SSH key installation.
 
 ---
 
