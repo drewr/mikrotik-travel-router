@@ -2,12 +2,12 @@
 # wg-to-env.sh — Parse a WireGuard config from stdin and merge the
 # extracted values into an env file, preserving any existing entries.
 #
-# Usage: cat airvpn.conf | bash wg-to-env.sh <env-file>
+# Usage: cat exit.conf | bash wg-to-env.sh <env-file>
 set -euo pipefail
 
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
-[[ $# -eq 1 ]] || die "Usage: cat airvpn.conf | $0 <env-file>"
+[[ $# -eq 1 ]] || die "Usage: cat exit.conf | $0 <env-file>"
 env_file="$1"
 
 wg_conf=$(cat)
@@ -50,17 +50,17 @@ endpoint_ip=$(printf '%s' "$endpoint_raw" | sed "s/:${endpoint_port}$//")
 
 tmp=$(mktemp)
 {
-    printf 'AIRVPN_PRIVATE_KEY=%s\n'   "$private_key"
-    printf 'AIRVPN_TUNNEL_IPV4=%s\n'   "$tunnel_ipv4"
-    printf 'AIRVPN_TUNNEL_IPV6=%s\n'   "$tunnel_ipv6"
-    printf 'AIRVPN_MTU=%s\n'           "${mtu:-1320}"
-    printf 'AIRVPN_SERVER_PUBKEY=%s\n' "$public_key"
-    printf 'AIRVPN_PRESHARED_KEY=%s\n' "$preshared_key"
-    printf 'AIRVPN_ENDPOINT_IP=%s\n'   "$endpoint_ip"
-    printf 'AIRVPN_ENDPOINT_PORT=%s\n' "$endpoint_port"
-    printf 'AIRVPN_KEEPALIVE=%s\n'     "${keepalive:-15}"
+    printf 'EXIT_PRIVATE_KEY=%s\n'   "$private_key"
+    printf 'EXIT_TUNNEL_IPV4=%s\n'   "$tunnel_ipv4"
+    printf 'EXIT_TUNNEL_IPV6=%s\n'   "$tunnel_ipv6"
+    printf 'EXIT_MTU=%s\n'           "${mtu:-1320}"
+    printf 'EXIT_SERVER_PUBKEY=%s\n' "$public_key"
+    printf 'EXIT_PRESHARED_KEY=%s\n' "$preshared_key"
+    printf 'EXIT_ENDPOINT_IP=%s\n'   "$endpoint_ip"
+    printf 'EXIT_ENDPOINT_PORT=%s\n' "$endpoint_port"
+    printf 'EXIT_KEEPALIVE=%s\n'     "${keepalive:-15}"
     if [[ -f "$env_file" ]]; then
-        grep -v '^AIRVPN_' "$env_file" || true
+        grep -v '^EXIT_' "$env_file" || true
     fi
 } > "$tmp"
 mv "$tmp" "$env_file"

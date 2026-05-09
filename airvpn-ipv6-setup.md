@@ -23,7 +23,7 @@ A travel router based on the MikroTik hAP ax² (C52iG-5HaxD2HaxD) that:
   eth4  eth5
               wifi2(2.4GHz)        ← disabled, not used
 
-  IPv6: all LAN traffic tunnelled through AirVPN WireGuard (wg airvpn)
+  IPv6: all LAN traffic tunnelled through AirVPN WireGuard (wg exit)
 ```
 
 ---
@@ -188,7 +188,7 @@ add bridge=bridge interface=wifiTravel
 ```
 /interface list member
 add interface=wifi1  list=WAN
-add interface=airvpn list=WAN
+add interface=exit list=WAN
 ```
 
 ---
@@ -326,8 +326,8 @@ cp .env.example .env
 $EDITOR .env
 ```
 
-Populate the AirVPN values by piping your downloaded WireGuard config through the
-parser. This overwrites only the `AIRVPN_*` keys, leaving everything else intact:
+Populate the `EXIT_*` values by piping your downloaded WireGuard config through the
+parser. This overwrites only the `EXIT_*` keys, leaving everything else intact:
 
 ```sh
 cat AirVPN_*.conf | bash wg-to-env.sh .env
@@ -391,7 +391,7 @@ The `last-handshake` field should be non-zero and recent (within 30 s given
 /ipv6 route print
 ```
 
-The `::/0` route should show `reachable` via `airvpn`.
+The `::/0` route should show `reachable` via `exit`.
 
 ### IPv6 from a LAN client
 
