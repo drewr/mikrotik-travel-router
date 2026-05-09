@@ -116,7 +116,7 @@ add interface=exit list=WAN
 # --- NAT ---
 /ip firewall nat add action=masquerade chain=srcnat comment="defconf: masquerade" ipsec-policy=out,none out-interface-list=WAN
 
-# --- WireGuard (AirVPN IPv6 tunnel) ---
+# --- WireGuard (IPv6 exit tunnel) ---
 /interface wireguard add name=exit private-key="${private_key}" listen-port=${wg_port} mtu=${mtu}
 /interface wireguard peers add interface=exit public-key="${server_pubkey}" preshared-key="${preshared_key}" endpoint-address=${endpoint_ip} endpoint-port=${endpoint_port} allowed-address=::/0 persistent-keepalive=${keepalive}s
 
@@ -128,5 +128,5 @@ add interface=exit list=WAN
 /ipv6 nd add interface=bridge ra-lifetime=1800 advertise-dns=yes other-configuration=no
 
 # --- Allow WireGuard UDP through IPv4 input firewall ---
-/ip firewall filter add action=accept chain=input comment="allow AirVPN WireGuard UDP" protocol=udp dst-port=${wg_port} in-interface-list=WAN place-before=[find comment="defconf: drop all not coming from LAN"]
+/ip firewall filter add action=accept chain=input comment="allow WireGuard exit UDP" protocol=udp dst-port=${wg_port} in-interface-list=WAN place-before=[find comment="defconf: drop all not coming from LAN"]
 EOF

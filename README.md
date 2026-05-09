@@ -8,7 +8,7 @@ A travel router based on the MikroTik hAP ax² (C52iG-5HaxD2HaxD) that:
 - Provides a private LAN via the 2.4 GHz radio, wired Ethernet ports (2–5), and an optional
   secondary "travel" SSID on the 5 GHz radio
 - NATs LAN clients behind its upstream IP (IPv4)
-- Tunnels IPv6 through AirVPN via WireGuard so LAN clients get IPv6 connectivity without
+- Tunnels IPv6 through a WireGuard exit node so LAN clients get IPv6 connectivity without
   any per-device configuration
 - Filters DNS through NextDNS over DoH
 
@@ -23,7 +23,7 @@ A travel router based on the MikroTik hAP ax² (C52iG-5HaxD2HaxD) that:
   eth4  eth5
               wifi2(2.4GHz)        ← disabled, not used
 
-  IPv6: all LAN traffic tunnelled through AirVPN WireGuard (wg exit)
+  IPv6: all LAN traffic tunnelled through WireGuard exit node (wg exit)
 ```
 
 ---
@@ -32,8 +32,8 @@ A travel router based on the MikroTik hAP ax² (C52iG-5HaxD2HaxD) that:
 
 - MikroTik hAP ax² (C52iG-5HaxD2HaxD), factory fresh or reset
 - Credentials for the upstream WiFi network you want to connect to
-- AirVPN account — download a **WireGuard** config for your preferred server from
-  the AirVPN client area
+- An IPv6-capable WireGuard exit node (AirVPN or your favorite WireGuard VPN provider) —
+  download a WireGuard config for your preferred server
 - Winbox (Windows/Mac app) or SSH to reach the router at `192.168.88.1`
 - (Optional) NextDNS account and profile ID
 
@@ -299,12 +299,13 @@ connections from the WAN side. Adjust as needed.
 
 ---
 
-## 15. IPv6 via AirVPN WireGuard
+## 15. IPv6 via WireGuard Exit Node
 
-The upstream WiFi network provides IPv4 only. We tunnel IPv6 through AirVPN using
-WireGuard. Because AirVPN assigns a single /128 (not a prefix), LAN clients get ULA
-addresses from a locally assigned /64, masqueraded behind the tunnel address via
-NAT66 — the IPv6 equivalent of the IPv4 masquerade already in place.
+The upstream WiFi network provides IPv4 only. We tunnel IPv6 through a WireGuard exit
+node (AirVPN or your favorite WireGuard VPN provider). Because the exit node assigns a
+single /128 (not a prefix), LAN clients get ULA addresses from a locally assigned /64,
+masqueraded behind the tunnel address via NAT66 — the IPv6 equivalent of the IPv4
+masquerade already in place.
 
 Rather than embedding secrets in these instructions, a pair of bash scripts in this
 repo build the RouterOS setup script from a `.env` file.
@@ -330,7 +331,7 @@ Populate the `EXIT_*` values by piping your downloaded WireGuard config through 
 parser. This overwrites only the `EXIT_*` keys, leaving everything else intact:
 
 ```sh
-cat AirVPN_*.conf | bash wg-to-env.sh .env
+cat wireguard.conf | bash wg-to-env.sh .env
 ```
 
 Generate the RouterOS script:
@@ -350,7 +351,7 @@ ssh root@192.168.88.1 "/import file-name=setup.rsc"
 - Each device auto-configures a ULA IPv6 address via SLAAC (no manual setup)
 - IPv6 default gateway is the router
 - DNS is served by the MikroTik (NextDNS DoH handles resolution)
-- Outbound IPv6 is masqueraded behind the AirVPN tunnel address at AirVPN's exit node
+- Outbound IPv6 is masqueraded behind the exit node's tunnel address
 - IPv4 is unaffected — still routes directly through wifi1
 
 ---
@@ -378,7 +379,7 @@ upstream AP.
 /ping 1.1.1.1
 ```
 
-### AirVPN tunnel
+### WireGuard exit tunnel
 
 ```
 /interface wireguard peers print
