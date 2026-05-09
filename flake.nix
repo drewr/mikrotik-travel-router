@@ -12,5 +12,30 @@
         packages = [ pkgs.bash pkgs.shellcheck pkgs.dotenv-cli ];
       };
     });
+
+    apps = forAllSystems (pkgs: let
+      importWireguard = pkgs.writeShellApplication {
+        name = "import-wireguard";
+        runtimeInputs = [ pkgs.coreutils pkgs.gnugrep pkgs.gnused ];
+        text = builtins.readFile ./wg-to-env.sh;
+      };
+
+      generateRsc = pkgs.writeShellApplication {
+        name = "generate-rsc";
+        runtimeInputs = [ ];
+        text = builtins.readFile ./generate-rsc.sh;
+      };
+
+      generate = pkgs.writeShellApplication {
+        name = "generate";
+        runtimeInputs = [ pkgs.dotenv-cli generateRsc ];
+        text = ''
+          dotenv -- generate-rsc "$@"
+        '';
+      };
+    in {
+      import-wireguard = { type = "app"; program = "${importWireguard}/bin/import-wireguard"; };
+      generate         = { type = "app"; program = "${generate}/bin/generate"; };
+    });
   };
 }

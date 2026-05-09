@@ -312,14 +312,6 @@ repo build the RouterOS setup script from a `.env` file.
 
 ### Setup
 
-The repo includes a `flake.nix` with `bash` and `shellcheck`. If you have Nix:
-
-```sh
-nix develop
-```
-
-Otherwise bash is already present on macOS and Linux.
-
 Copy the env template and fill in the network values:
 
 ```sh
@@ -331,13 +323,13 @@ Populate the `EXIT_*` values by piping your downloaded WireGuard config through 
 parser. This overwrites only the `EXIT_*` keys, leaving everything else intact:
 
 ```sh
-cat wireguard.conf | bash wg-to-env.sh .env
+nix run .#import-wireguard < wireguard.conf
 ```
 
 Generate the RouterOS script:
 
 ```sh
-dotenv ./generate-rsc.sh > setup.rsc
+nix run .#generate > setup.rsc
 ```
 
 Apply it on the router:

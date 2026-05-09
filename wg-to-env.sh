@@ -2,13 +2,13 @@
 # wg-to-env.sh — Parse a WireGuard config from stdin and merge the
 # extracted values into an env file, preserving any existing entries.
 #
-# Usage: cat exit.conf | bash wg-to-env.sh <env-file>
+# Usage: cat wireguard.conf | bash wg-to-env.sh [env-file]  (default: .env)
 set -euo pipefail
 
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
-[[ $# -eq 1 ]] || die "Usage: cat exit.conf | $0 <env-file>"
-env_file="$1"
+[[ $# -le 1 ]] || die "Usage: cat wireguard.conf | $0 [env-file]"
+env_file="${1:-.env}"
 
 wg_conf=$(cat)
 
