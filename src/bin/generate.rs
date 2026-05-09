@@ -1,6 +1,32 @@
 use anyhow::{Context, Result};
 use std::{env, fs, process::Command};
 
+const DEFAULT_LAN_SUBNET: &str = "192.168.88.0/24";
+
+struct LanConfig {
+    network:    String,
+    gateway:    String,
+    dhcp_start: String,
+    dhcp_end:   String,
+}
+
+fn parse_subnet(cidr: &str) -> Result<LanConfig> {
+    let (ip, prefix) = cidr.split_once('/')
+        .ok_or_else(|| anyhow::anyhow!("LAN_SUBNET must be CIDR notation, e.g. 192.168.88.0/24"))?;
+    anyhow::ensure!(prefix == "24", "Only /24 subnets are supported (got /{})", prefix);
+    let octs: Vec<u8> = ip.split('.')
+        .map(|o| o.parse::<u8>().with_context(|| format!("Invalid octet in LAN_SUBNET: {}", o)))
+        .collect::<Result<_>>()?;
+    anyhow::ensure!(octs.len() == 4, "LAN_SUBNET must be an IPv4 address");
+    let base = format!("{}.{}.{}.", octs[0], octs[1], octs[2]);
+    Ok(LanConfig {
+        network:    format!("{}0", base),
+        gateway:    format!("{}1", base),
+        dhcp_start: format!("{}10", base),
+        dhcp_end:   format!("{}254", base),
+    })
+}
+
 fn required(key: &str) -> Result<String> {
     env::var(key).with_context(|| format!("Required variable not set: {}", key))
 }
@@ -28,6 +54,9 @@ fn main() -> Result<()> {
     let endpoint_ip   = required("EXIT_ENDPOINT_IP")?;
     let endpoint_port = required("EXIT_ENDPOINT_PORT")?;
     let keepalive     = optional("EXIT_KEEPALIVE", "15");
+
+    let lan_subnet   = optional("LAN_SUBNET", DEFAULT_LAN_SUBNET);
+    let lan          = parse_subnet(&lan_subnet)?;
 
     let ssh_key_file = env::var("ROOT_SSH_PUBLIC_KEY_FILE").ok().filter(|s| !s.is_empty());
     let router_ip    = optional("ROUTER_IP", "192.168.88.1");
@@ -110,7 +139,7 @@ fn main() -> Result<()> {
     println!();
     println!("# --- DNS ---");
     println!("/ip dns set allow-remote-requests=yes servers=1.1.1.3,1.0.0.3 use-doh-server=\"https://dns.nextdns.io/{nextdns_id}/{nextdns_name}\" verify-doh-cert=yes");
-    println!("/ip dns static add name=router.lan address=192.168.88.1 type=A comment=defconf");
+    println!("/ip dns static add name=router.lan address={} type=A comment=defconf", lan.gateway);
     println!("/ip dns static add name=dns.nextdns.io address=45.90.28.0  type=A");
     println!("/ip dns static add name=dns.nextdns.io address=45.90.30.0  type=A");
     println!("/ip dns static add name=dns.nextdns.io address=2a07:a8c0:: type=AAAA");
@@ -147,6 +176,18 @@ fn main() -> Result<()> {
     println!();
     println!("# --- Allow WireGuard UDP through IPv4 input firewall ---");
     println!("/ip firewall filter add action=accept chain=input comment=\"allow WireGuard exit UDP\" protocol=udp dst-port={wg_port} in-interface-list=WAN place-before=[find comment=\"defconf: drop all not coming from LAN\"]");
+
+    if lan_subnet != DEFAULT_LAN_SUBNET {
+        println!();
+        println!("# --- LAN subnet ({lan_subnet}) ---");
+        println!("# These run last because changing the bridge IP drops any active SSH session.");
+        println!("# If importing via SSH, the connection will drop here but /import continues");
+        println!("# on the router. Reconnect at {}/24 when done.", lan.gateway);
+        println!("/ip address set [find interface=bridge] address={}/24 network={}", lan.gateway, lan.network);
+        println!("/ip pool set [find name=default-dhcp] ranges={}-{}", lan.dhcp_start, lan.dhcp_end);
+        println!("/ip dhcp-server network set [find address=192.168.88.0/24] address={}/24 gateway={} dns-server={}", lan.network, lan.gateway, lan.gateway);
+        println!("/ip dns static set [find name=router.lan] address={}", lan.gateway);
+    }
 
     if let Some(ref key_path) = ssh_key_file {
         let key = fs::read_to_string(key_path)
