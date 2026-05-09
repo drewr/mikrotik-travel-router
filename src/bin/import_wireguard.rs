@@ -109,3 +109,58 @@ fn main() -> Result<()> {
     eprintln!("{} updated.", env_path);
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn parse_addresses_ipv4_and_ipv6() {
+        let (v4, v6) = parse_addresses("10.0.0.1/32, fd00::1/128").unwrap();
+        assert_eq!(v4, "10.0.0.1/32");
+        assert_eq!(v6, "fd00::1/128");
+    }
+
+    #[test]
+    fn parse_addresses_ipv6_only() {
+        let (v4, v6) = parse_addresses("fd00::1/128").unwrap();
+        assert_eq!(v4, "");
+        assert_eq!(v6, "fd00::1/128");
+    }
+
+    #[test]
+    fn parse_addresses_no_ipv6_fails() {
+        assert!(parse_addresses("10.0.0.1/32").is_err());
+    }
+
+    #[test]
+    fn parse_endpoint_valid() {
+        let (ip, port) = parse_endpoint("198.44.159.5:47107").unwrap();
+        assert_eq!(ip, "198.44.159.5");
+        assert_eq!(port, "47107");
+    }
+
+    #[test]
+    fn parse_endpoint_no_port_fails() {
+        assert!(parse_endpoint("198.44.159.5").is_err());
+    }
+
+    #[test]
+    fn require_present() {
+        let conf = HashMap::from([("Key".to_string(), "val".to_string())]);
+        assert_eq!(require(&conf, "Key").unwrap(), "val");
+    }
+
+    #[test]
+    fn require_missing_fails() {
+        let conf = HashMap::new();
+        assert!(require(&conf, "Missing").is_err());
+    }
+
+    #[test]
+    fn require_empty_fails() {
+        let conf = HashMap::from([("Key".to_string(), "".to_string())]);
+        assert!(require(&conf, "Key").is_err());
+    }
+}

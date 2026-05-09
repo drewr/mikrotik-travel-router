@@ -11,6 +11,9 @@ path = "src/bin/import_wireguard.rs"
 name = "generate"
 path = "src/bin/generate.rs"
 
+[dev-dependencies]
+tempfile = "3"
+
 [dependencies]
 anyhow = "1"
 chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }

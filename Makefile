@@ -4,4 +4,7 @@ build:
 check:
 	cargo clippy -- -D warnings
 
-.PHONY: build check
+test:
+	cargo test
+
+.PHONY: build check test
