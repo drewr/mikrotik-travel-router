@@ -1,0 +1,20 @@
+[package]
+name = "mikrotik-travel-router"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "import-wireguard"
+path = "src/bin/import_wireguard.rs"
+
+[[bin]]
+name = "generate"
+path = "src/bin/generate.rs"
+
+[dev-dependencies]
+tempfile = "3"
+
+[dependencies]
+anyhow = "1"
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
+dotenvy = "0.15"
