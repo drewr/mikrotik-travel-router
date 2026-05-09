@@ -1,4 +1,5 @@
 use anyhow::{bail, Context, Result};
+use chrono::Local;
 use std::collections::HashMap;
 use std::io::{self, BufRead, Write};
 use std::{env, fs};
@@ -74,7 +75,14 @@ fn main() -> Result<()> {
     let (endpoint_ip, endpoint_port) = parse_endpoint(endpoint_raw)?;
 
     let preserved: String = if fs::metadata(&env_path).is_ok() {
-        fs::read_to_string(&env_path)?
+        let date = Local::now().format("%Y%m%d").to_string();
+        let backup_path = (1u32..)
+            .map(|n| format!("{}-{}-{:02}", env_path, date, n))
+            .find(|p| fs::metadata(p).is_err())
+            .expect("infallible");
+        fs::rename(&env_path, &backup_path)?;
+        eprintln!("backed up to {}", backup_path);
+        fs::read_to_string(&backup_path)?
             .lines()
             .filter(|l| !l.starts_with("EXIT_") && !l.starts_with("# EXIT_"))
             .map(|l| format!("{}\n", l))
