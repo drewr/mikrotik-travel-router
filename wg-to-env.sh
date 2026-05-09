@@ -50,6 +50,7 @@ endpoint_ip=$(printf '%s' "$endpoint_raw" | sed "s/:${endpoint_port}$//")
 
 tmp=$(mktemp)
 {
+    printf '# EXIT_* values — populated by wg-to-env.sh\n'
     printf 'EXIT_PRIVATE_KEY=%s\n'   "$private_key"
     printf 'EXIT_TUNNEL_IPV4=%s\n'   "$tunnel_ipv4"
     printf 'EXIT_TUNNEL_IPV6=%s\n'   "$tunnel_ipv6"
@@ -61,6 +62,20 @@ tmp=$(mktemp)
     printf 'EXIT_KEEPALIVE=%s\n'     "${keepalive:-15}"
     if [[ -f "$env_file" ]]; then
         grep -v '^EXIT_' "$env_file" || true
+    else
+        cat <<'EOF'
+
+# Network — fill in manually
+UPSTREAM_SSID=
+UPSTREAM_WIFI_PASSWORD=
+TRAVEL_SSID=
+TRAVEL_WIFI_PASSWORD=
+NEXTDNS_PROFILE_ID=
+NEXTDNS_DEVICE_NAME=
+DEVICE_NAME=
+WG_LISTEN_PORT=13231
+LAN_ULA_PREFIX=fd88:1::1/64
+EOF
     fi
 } > "$tmp"
 mv "$tmp" "$env_file"
