@@ -98,7 +98,7 @@ fn main() -> Result<()> {
     println!("/system ntp client servers add address=pool.ntp.org");
     println!();
     println!("# --- Users ---");
-    println!("/user add name=root group=full");
+    println!(":do {{ /user add name=root group=full }} on-error={{}}");
     println!();
     println!("# --- Bridge ---");
     println!("/interface bridge add name=bridge comment=defconf");

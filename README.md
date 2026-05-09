@@ -141,8 +141,12 @@ running on the router. Reconnect at the new gateway IP when done.
 
 ## First-time device setup
 
-On a factory-fresh device, connect to the `MikroTik-XXXXXX` SSID or plug into any
-Ethernet port (2–5) and SSH or Winbox to `192.168.88.1` (user `admin`, no password).
+**Use Ethernet** (any of ether2–5) rather than WiFi for the initial import.
+The RSC disables the default `MikroTik-XXXXXX` WiFi SSID early on, which drops
+any wireless session. Ethernet stays up throughout.
+
+On a factory-fresh device, plug into any Ethernet port and SSH or Winbox to
+`192.168.88.1` (user `admin`, no password).
 
 Set an admin password immediately:
 
@@ -150,14 +154,8 @@ Set an admin password immediately:
 /user set [find name=admin] password="YOUR_ADMIN_PASSWORD"
 ```
 
-Create the root user the RSC expects:
-
-```
-/user add name=root group=full
-```
-
-If `ROOT_SSH_PUBLIC_KEY_FILE` is not set in your `.env`, install your SSH key
-manually:
+The RSC creates the `root` user automatically. If `ROOT_SSH_PUBLIC_KEY_FILE` is
+not set in your `.env`, install your SSH key manually after applying the RSC:
 
 ```sh
 ssh -4 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@192.168.88.1 \
