@@ -8,15 +8,15 @@ use std::{env, fs};
 // EXIT_IPV4 and EXIT_IPV6 are NOT in this list: they are user choices
 // and must survive a re-run of import-wireguard.
 const WG_KEYS: &[&str] = &[
-    "EXIT_PRIVATE_KEY=",
-    "EXIT_TUNNEL_IPV4=",
-    "EXIT_TUNNEL_IPV6=",
-    "EXIT_MTU=",
-    "EXIT_SERVER_PUBKEY=",
-    "EXIT_PRESHARED_KEY=",
-    "EXIT_ENDPOINT_IP=",
-    "EXIT_ENDPOINT_PORT=",
-    "EXIT_KEEPALIVE=",
+    "EXIT_PRIVATE_KEY",
+    "EXIT_TUNNEL_IPV4",
+    "EXIT_TUNNEL_IPV6",
+    "EXIT_MTU",
+    "EXIT_SERVER_PUBKEY",
+    "EXIT_PRESHARED_KEY",
+    "EXIT_ENDPOINT_IP",
+    "EXIT_ENDPOINT_PORT",
+    "EXIT_KEEPALIVE",
 ];
 
 const TEMPLATE: &str = "\n\
