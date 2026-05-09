@@ -16,7 +16,7 @@
     (let ((line (read-line port)))
       (if (eof-object? line)
           (reverse acc)
-          (loop (cons line acc))))))
+          (loop (cons (string-trim-right line (lambda (c) (char=? c #\return))) acc))))))
 
 (define (parse-kv line)
   "Return (key . value) for a WireGuard 'Key = Value' line, or #f."
