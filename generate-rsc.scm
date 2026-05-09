@@ -16,9 +16,13 @@
           (reverse acc)
           (loop (cons line acc))))))
 
+(define (die msg)
+  (format (current-error-port) "error: ~a\n" msg)
+  (exit 1))
+
 (define (read-env path)
   (if (not (file-exists? path))
-      (error "Missing .env — copy .env.example and fill in values")
+      (die "Missing .env — copy .env.example and fill in values")
       (filter-map
        (lambda (line)
          (let ((m (string-match "^([A-Z_][A-Z0-9_]*)=(.+)$" line)))
@@ -28,7 +32,7 @@
 (define (required env key)
   (let ((v (assoc-ref env key)))
     (when (or (not v) (string=? v ""))
-      (error (string-append "Required variable not set in .env: " key)))
+      (die (string-append "Required variable not set in .env: " key)))
     v))
 
 (define (optional env key default)
